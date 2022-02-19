@@ -32,6 +32,11 @@ class Node():
                  max_features,
                  min_gain,
                  impurity,
+                 use_lm_l2,
+                 use_lm_l1,
+                 use_nnet,
+                 nnet_min_samples,
+                 use_etc,
                  N,
                  current_depth,
                  use_oracle):
@@ -42,6 +47,11 @@ class Node():
         self.max_features = max_features
         self.min_gain = min_gain
         self.impurity = impurity
+        self.use_lm_l2 = use_lm_l2
+        self.use_lm_l1 = use_lm_l1
+        self.use_nnet = use_nnet
+        self.nnet_min_samples = nnet_min_samples
+        self.use_etc = use_etc
         self.N = N
         self.current_depth = current_depth
         self.use_oracle = use_oracle
@@ -138,6 +148,11 @@ class Node():
                                  self.max_features,
                                  self.min_gain,
                                  self.impurity,
+                                 self.use_lm_l2,
+                                 self.use_lm_l1,
+                                 self.use_nnet,
+                                 self.nnet_min_samples,
+                                 self.use_etc,
                                  N = X.shape[0],
                                  current_depth = self.current_depth + 1,
                                  use_oracle = self.use_oracle).get_split(X[L], 
@@ -148,6 +163,11 @@ class Node():
                                   self.max_features,
                                   self.min_gain,
                                   self.impurity,
+                                  self.use_lm_l2,
+                                  self.use_lm_l1,
+                                  self.use_nnet,
+                                  self.nnet_min_samples,
+                                  self.use_etc,
                                   N = X.shape[0],
                                   current_depth = self.current_depth + 1,
                                   use_oracle = self.use_oracle).get_split(X[R], 
@@ -161,8 +181,7 @@ class Node():
                 self.c_choice = choice([i for i in range(outcomes.shape[0])])
 
                 #Train Linear Models - L2 
-                use_lm = True
-                if use_lm == True:
+                if self.use_lm_l2 == True:
                     for clf in [LM2Classifier(n_feat = self.max_features), 
                                 RMClassifier(n_feat = self.max_features), 
                                 SVClassifier(n_feat = self.max_features), 
@@ -198,8 +217,7 @@ class Node():
                             model_type.append(model.m_type)
 
                 #Train Linear Models - L1 / ElasticNet
-                use_lm_l1 = True
-                if use_lm_l1 == True:
+                if self.use_lm_l1 == True:
                     for clf in [LM1Classifier(n_feat = self.max_features), 
                                 SG1Classifier(n_feat = self.max_features)]:
                         model, D = clf.fit(X, y)
@@ -232,9 +250,8 @@ class Node():
                             model_type.append(model.m_type)
                             
                 #Train a Neural Network
-                use_net = True
-                if use_net == True:
-                    if X.shape[0] >= 32:
+                if self.use_nnet == True:
+                    if X.shape[0] >= self.nnet_min_samples:
                         for clf in [ANNClassifier(n_feat = self.max_features)]:
                             model, D = clf.fit(X, y)
 
@@ -266,38 +283,36 @@ class Node():
                                 model_type.append(model.m_type)
 
                 #Train Decision Tree Models
-                use_tree = False
-                if use_tree == True:
-                    if X.shape[0] >= 10:
-                        for clf in [ETClassifier(n_feat = self.max_features)]:
-                            model, D = clf.fit(X, y)
+                if self.use_etc == True:
+                    for clf in [ETClassifier(n_feat = self.max_features)]:
+                        model, D = clf.fit(X, y)
 
-                            if D.ndim > 1:
-                                D = D[:, self.c_choice]
+                        if D.ndim > 1:
+                            D = D[:, self.c_choice]
 
-                            L = np.where(D > 0.5, True, False)
-                            R = np.where(D <= 0.5, True, False)
+                        L = np.where(D > 0.5, True, False)
+                        R = np.where(D <= 0.5, True, False)
 
-                            X_L_n = X[L].shape[0]
-                            X_R_n = X[R].shape[0]
+                        X_L_n = X[L].shape[0]
+                        X_R_n = X[R].shape[0]
 
-                            #Calculate Information Gain
-                            if X_L_n > 0 and X_R_n > 0:
-                                L_outcome, L_counts = np.unique(y[L], return_counts = True)
-                                L_prob = L_counts / L_counts.sum()
-                                H_L = entropy(L_prob) * (L_counts.sum() / self.N)
+                        #Calculate Information Gain
+                        if X_L_n > 0 and X_R_n > 0:
+                            L_outcome, L_counts = np.unique(y[L], return_counts = True)
+                            L_prob = L_counts / L_counts.sum()
+                            H_L = entropy(L_prob) * (L_counts.sum() / self.N)
 
-                                R_outcome, R_counts = np.unique(y[R], return_counts = True)
-                                R_prob = R_counts / R_counts.sum()
-                                H_R = entropy(R_prob) * (R_counts.sum() / self.N)
+                            R_outcome, R_counts = np.unique(y[R], return_counts = True)
+                            R_prob = R_counts / R_counts.sum()
+                            H_R = entropy(R_prob) * (R_counts.sum() / self.N)
 
-                                H_parent = entropy(counts_prob)
+                            H_parent = entropy(counts_prob)
 
-                                IG = H_parent - H_L - H_R
+                            IG = H_parent - H_L - H_R
 
-                                gains.append(IG)
-                                hyperplane_list.append((model, L, R))
-                                model_type.append(model.m_type)
+                            gains.append(IG)
+                            hyperplane_list.append((model, L, R))
+                            model_type.append(model.m_type)
 
                 gains = np.asarray(gains)
                 hyperplane_list = np.asarray(hyperplane_list, dtype = "object")
@@ -329,6 +344,11 @@ class Node():
                                         self.max_features,
                                         self.min_gain,
                                         self.impurity,
+                                        self.use_lm_l2,
+                                        self.use_lm_l1,
+                                        self.use_nnet,
+                                        self.nnet_min_samples,
+                                        self.use_etc,
                                         N = X.shape[0],
                                         current_depth = self.current_depth + 1,
                                         use_oracle = self.use_oracle).get_split(X[L],
@@ -339,6 +359,11 @@ class Node():
                                         self.max_features,
                                         self.min_gain,
                                         self.impurity,
+                                        self.use_lm_l2,
+                                        self.use_lm_l1,
+                                        self.use_nnet,
+                                        self.nnet_min_samples,
+                                        self.use_etc,
                                         N = X.shape[0],
                                         current_depth = self.current_depth + 1,
                                         use_oracle = self.use_oracle).get_split(X[R],
@@ -364,7 +389,12 @@ class MTree(ClassifierMixin, BaseEstimator):
                  min_gain,
                  impurity,
                  use_oracle,
-                 bootstrap
+                 bootstrap,
+                 use_lm_l2,
+                 use_lm_l1,
+                 use_nnet,
+                 nnet_min_samples,
+                 use_etc
                  ):
         
         self.min_samples_in_leaf = min_samples_in_leaf
@@ -374,6 +404,11 @@ class MTree(ClassifierMixin, BaseEstimator):
         self.impurity = impurity
         self.use_oracle = use_oracle
         self.bootstrap = bootstrap
+        self.use_lm_l2 = use_lm_l2
+        self.use_lm_l1 = use_lm_l1
+        self.use_nnet = use_nnet
+        self.nnet_min_samples = nnet_min_samples
+        self.use_etc = use_etc
         
     def fit(self, X, y):
 
@@ -386,6 +421,11 @@ class MTree(ClassifierMixin, BaseEstimator):
                     self.max_features,
                     self.min_gain,
                     self.impurity,
+                    self.use_lm_l2,
+                    self.use_lm_l1,
+                    self.use_nnet,
+                    self.nnet_min_samples,
+                    self.use_etc,
                     N = X.shape[0],
                     current_depth = 1,
                     use_oracle = self.use_oracle)
